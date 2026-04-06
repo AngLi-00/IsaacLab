@@ -574,6 +574,12 @@ class SimulationContext(_SimulationContext):
             #   without this the app becomes unresponsive.
             # FIXME: This steps physics as well, which we is not good in general.
             self.app.update()
+            # Force fabric to re-synchronize articulation transforms after GUI resume.
+            # Starting with PhysX fabric 107.3.21 (Isaac Sim 5.1), the FabricManager skips
+            # writing articulation poses on subsequent resumes, causing articulation meshes
+            # to freeze visually. Detaching and re-attaching the stage forces a full
+            # re-initialization. See: https://github.com/isaac-sim/IsaacLab/issues/4279
+            self._re_sync_fabric()
 
         # step the simulation
         super().step(render=render)
@@ -889,6 +895,37 @@ class SimulationContext(_SimulationContext):
             else:
                 # Needed for backward compatibility with older Isaac Sim versions
                 self._update_fabric = self._fabric_iface.update
+
+    def _re_sync_fabric(self) -> None:
+        """Force the PhysX fabric extension to re-synchronize after a pause/resume transition.
+
+        Starting with PhysX fabric 107.3.21 (Isaac Sim 5.1), the FabricManager skips writing
+        initial articulation poses to fabric on subsequent resumes, causing articulation meshes
+        to freeze visually while physics continues to run.
+
+        The workaround detaches and re-attaches the USD stage on the fabric interface, forcing
+        the FabricManager to fully reinitialize and write transforms into fabric so that Hydra
+        picks them up. See: https://github.com/isaac-sim/IsaacLab/issues/4279
+        """
+        if self._fabric_iface is None:
+            return
+        stage = self.stage
+        if stage is None:
+            return
+        stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
+        if stage_id <= 0:
+            return
+        try:
+            self._fabric_iface.detach_stage()
+        except Exception:
+            logger.warning("Failed to detach fabric stage during re-sync. Articulation visuals may be stale.")
+            return
+        try:
+            self._fabric_iface.attach_stage(stage_id)
+            if self._update_fabric is not None:
+                self._update_fabric(0.0, 0.0)
+        except Exception:
+            logger.warning("Failed to re-attach fabric stage after pause/resume. Articulation visuals may be stale.")
 
     def _update_anim_recording(self):
         """Tracks anim recording timestamps and triggers finish animation recording if the total time has elapsed."""
