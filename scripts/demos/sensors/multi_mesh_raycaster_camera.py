@@ -195,7 +195,8 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     ground = AssetBaseCfg(
         prim_path="/World/Ground",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+            # usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/flat_plane.usd",
             scale=(1, 1, 1),
         ),
     )
